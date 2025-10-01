@@ -29,7 +29,8 @@ else
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Tipo</label>
-                        <InputSelect class="form-select" @bind-Value="_nuevo.Tipo">
+                        <InputSelect class="form-select" @bind-Value="_nuevo.Tipo" TValue="TipoMantenimiento?">
+                            <option value="">Seleccione</option>
                             @foreach (var tipo in Enum.GetValues<TipoMantenimiento>())
                             {
                                 <option value="@tipo">@tipo</option>
@@ -148,6 +149,12 @@ else
             return;
         }
 
+        if (_nuevo.Tipo is null)
+        {
+            _mensaje = "Seleccione un tipo de mantenimiento.";
+            return;
+        }
+
         var equipo = await Db.Equipos.FindAsync(_nuevo.EquipoId.Value);
         if (equipo is null || equipo.Estado == EstadoEquipo.DeBaja)
         {
@@ -158,7 +165,7 @@ else
         Db.Mantenimientos.Add(new Mantenimiento
         {
             EquipoId = _nuevo.EquipoId.Value,
-            Tipo = _nuevo.Tipo,
+            Tipo = _nuevo.Tipo.Value,
             FechaProgramada = _nuevo.FechaProgramada,
             Proveedor = _nuevo.Proveedor,
             Costo = _nuevo.Costo,
@@ -170,6 +177,7 @@ else
         _mensaje = "Mantenimiento programado.";
         await OnInitializedAsync();
         _nuevo.EquipoId = null;
+        _nuevo.Tipo = null;
         _nuevo.FechaProgramada = null;
         _nuevo.Costo = null;
         _nuevo.Notas = null;
@@ -206,7 +214,8 @@ else
         [Required]
         public int? EquipoId { get; set; }
 
-        public TipoMantenimiento Tipo { get; set; } = TipoMantenimiento.Preventivo;
+        [Required]
+        public TipoMantenimiento? Tipo { get; set; }
 
         public DateTime? FechaProgramada { get; set; }
 
