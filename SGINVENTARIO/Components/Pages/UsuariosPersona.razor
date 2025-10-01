@@ -1,0 +1,113 @@
+@page "/usuarios-persona"
+@attribute [Authorize(Roles = "Admin,Tecnico")]
+@inject ApplicationDbContext Db
+
+<h1>Usuarios</h1>
+
+<EditForm Model="_usuario" OnValidSubmit="GuardarAsync">
+    <DataAnnotationsValidator />
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label">Nombres</label>
+            <InputText class="form-control" @bind-Value="_usuario.Nombres" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Apellidos</label>
+            <InputText class="form-control" @bind-Value="_usuario.Apellidos" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Email</label>
+            <InputText class="form-control" @bind-Value="_usuario.Email" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Documento</label>
+            <InputText class="form-control" @bind-Value="_usuario.Documento" />
+        </div>
+        <div class="col-md-1">
+            <button type="submit" class="btn btn-primary w-100">@(_usuario.Id == 0 ? "Agregar" : "Actualizar")</button>
+        </div>
+    </div>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert alert-info mt-3">@_mensaje</div>
+}
+
+<table class="table table-striped mt-3">
+    <thead>
+        <tr>
+            <th>Nombre completo</th>
+            <th>Email</th>
+            <th>Documento</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var usuario in _usuarios)
+        {
+            <tr>
+                <td>@usuario.NombreCompleto</td>
+                <td>@usuario.Email</td>
+                <td>@usuario.Documento</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(usuario)"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Eliminar(usuario.Id)"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<UsuarioPersona> _usuarios = new();
+    private UsuarioPersona _usuario = new();
+    private string? _mensaje;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuarios = await Db.UsuariosPersona.OrderBy(u => u.Nombres).ToListAsync();
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_usuario.Id == 0)
+        {
+            Db.UsuariosPersona.Add(_usuario);
+        }
+        else
+        {
+            Db.UsuariosPersona.Update(_usuario);
+        }
+
+        await Db.SaveChangesAsync();
+        _mensaje = "Cambios guardados.";
+        _usuario = new UsuarioPersona();
+        _usuarios = await Db.UsuariosPersona.OrderBy(u => u.Nombres).ToListAsync();
+    }
+
+    private void Editar(UsuarioPersona usuario)
+    {
+        _usuario = new UsuarioPersona
+        {
+            Id = usuario.Id,
+            Nombres = usuario.Nombres,
+            Apellidos = usuario.Apellidos,
+            Email = usuario.Email,
+            Documento = usuario.Documento
+        };
+    }
+
+    private async Task Eliminar(int id)
+    {
+        var entity = await Db.UsuariosPersona.FindAsync(id);
+        if (entity is null)
+        {
+            return;
+        }
+
+        Db.UsuariosPersona.Remove(entity);
+        await Db.SaveChangesAsync();
+        _usuarios = await Db.UsuariosPersona.OrderBy(u => u.Nombres).ToListAsync();
+    }
+}

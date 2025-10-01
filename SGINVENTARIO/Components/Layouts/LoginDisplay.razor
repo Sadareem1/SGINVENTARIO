@@ -1,0 +1,29 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject SignInManager<IdentityUser> SignInManager
+
+<AuthorizeView>
+    <Authorized>
+        <div class="dropdown">
+            <a class="btn btn-outline-primary dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                @context.User.Identity?.Name
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/identity/account/manage">Perfil</a></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li><button class="dropdown-item" @onclick="SignOut">Cerrar sesión</button></li>
+            </ul>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-primary" href="/login">Ingresar</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task SignOut()
+    {
+        await SignInManager.SignOutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+}

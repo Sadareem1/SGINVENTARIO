@@ -1,0 +1,218 @@
+@page "/mantenimientos"
+@attribute [Authorize(Roles = "Admin,Tecnico,Consulta")]
+@inject ApplicationDbContext Db
+@inject IJSRuntime JS
+
+<h1>Mantenimientos</h1>
+
+@if (_mantenimientos is null)
+{
+    <p><span class="spinner-border"></span> Cargando...</p>
+}
+else
+{
+    <div class="card card-dashboard mb-4">
+        <div class="card-body">
+            <h2 class="h5">Programar mantenimiento</h2>
+            <EditForm Model="_nuevo" OnValidSubmit="CrearMantenimientoAsync">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Equipo</label>
+                        <InputSelect class="form-select" @bind-Value="_nuevo.EquipoId">
+                            <option value="">Seleccione</option>
+                            @foreach (var equipo in _equipos)
+                            {
+                                <option value="@equipo.Id">@equipo.CodigoInventario - @equipo.Marca @equipo.Modelo</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo</label>
+                        <InputSelect class="form-select" @bind-Value="_nuevo.Tipo">
+                            @foreach (var tipo in Enum.GetValues<TipoMantenimiento>())
+                            {
+                                <option value="@tipo">@tipo</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Fecha programada</label>
+                        <InputDate class="form-control" @bind-Value="_nuevo.FechaProgramada" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Costo</label>
+                        <InputNumber class="form-control" @bind-Value="_nuevo.Costo" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Notas</label>
+                        <InputTextArea class="form-control" @bind-Value="_nuevo.Notas" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Proveedor</label>
+                        <InputText class="form-control" @bind-Value="_nuevo.Proveedor" />
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Programar</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Equipo</th>
+                    <th>Tipo</th>
+                    <th>Programado</th>
+                    <th>Ejecución</th>
+                    <th>Estado</th>
+                    <th>Costo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_mantenimientos.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center">No existen mantenimientos.</td></tr>
+                }
+                else
+                {
+                    @foreach (var mantenimiento in _mantenimientos)
+                    {
+                        <tr>
+                            <td>@mantenimiento.Equipo?.CodigoInventario</td>
+                            <td>@mantenimiento.Tipo</td>
+                            <td>@mantenimiento.FechaProgramada?.ToString("dd/MM/yyyy")</td>
+                            <td>@mantenimiento.FechaEjecucion?.ToString("dd/MM/yyyy")</td>
+                            <td><span class="badge bg-secondary">@mantenimiento.Estado</span></td>
+                            <td>@mantenimiento.Costo?.ToString("C", CultureInfo.CurrentCulture)</td>
+                            <td class="text-end">
+                                @if (mantenimiento.Estado == EstadoMantenimiento.Pendiente && UserCanEdit)
+                                {
+                                    <button class="btn btn-sm btn-outline-success" @onclick="() => ActualizarEstado(mantenimiento.Id, EstadoMantenimiento.Completado)"><i class="bi bi-check-lg"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ActualizarEstado(mantenimiento.Id, EstadoMantenimiento.Cancelado)"><i class="bi bi-x-lg"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert alert-info mt-3">@_mensaje</div>
+}
+
+@code {
+    private List<Mantenimiento>? _mantenimientos;
+    private List<Equipo> _equipos = new();
+    private readonly MantenimientoFormModel _nuevo = new();
+    private string? _mensaje;
+
+    private ClaimsPrincipal _usuario = new();
+    private bool UserCanEdit => _usuario.IsInRole("Admin") || _usuario.IsInRole("Tecnico");
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationStateTask is not null)
+        {
+            _usuario = (await AuthenticationStateTask).User;
+        }
+
+        _equipos = await Db.Equipos
+            .Where(e => e.Estado != EstadoEquipo.DeBaja)
+            .OrderBy(e => e.CodigoInventario)
+            .ToListAsync();
+
+        _mantenimientos = await Db.Mantenimientos
+            .Include(m => m.Equipo)
+            .OrderByDescending(m => m.FechaProgramada ?? m.FechaEjecucion)
+            .Take(200)
+            .ToListAsync();
+    }
+
+    private async Task CrearMantenimientoAsync()
+    {
+        if (_nuevo.EquipoId is null or 0)
+        {
+            _mensaje = "Seleccione un equipo válido.";
+            return;
+        }
+
+        var equipo = await Db.Equipos.FindAsync(_nuevo.EquipoId.Value);
+        if (equipo is null || equipo.Estado == EstadoEquipo.DeBaja)
+        {
+            _mensaje = "No es posible programar mantenimientos para equipos de baja.";
+            return;
+        }
+
+        Db.Mantenimientos.Add(new Mantenimiento
+        {
+            EquipoId = _nuevo.EquipoId.Value,
+            Tipo = _nuevo.Tipo,
+            FechaProgramada = _nuevo.FechaProgramada,
+            Proveedor = _nuevo.Proveedor,
+            Costo = _nuevo.Costo,
+            Notas = _nuevo.Notas,
+            Estado = EstadoMantenimiento.Pendiente
+        });
+
+        await Db.SaveChangesAsync();
+        _mensaje = "Mantenimiento programado.";
+        await OnInitializedAsync();
+        _nuevo.EquipoId = null;
+        _nuevo.FechaProgramada = null;
+        _nuevo.Costo = null;
+        _nuevo.Notas = null;
+        _nuevo.Proveedor = null;
+    }
+
+    private async Task ActualizarEstado(int id, EstadoMantenimiento estado)
+    {
+        if (!UserCanEdit)
+        {
+            return;
+        }
+
+        var mantenimiento = await Db.Mantenimientos.FindAsync(id);
+        if (mantenimiento is null)
+        {
+            return;
+        }
+
+        mantenimiento.Estado = estado;
+        if (estado == EstadoMantenimiento.Completado)
+        {
+            mantenimiento.FechaEjecucion = DateTime.UtcNow.Date;
+        }
+
+        await Db.SaveChangesAsync();
+        _mensaje = "Estado actualizado.";
+        await OnInitializedAsync();
+    }
+}
+
+    private class MantenimientoFormModel
+    {
+        [Required]
+        public int? EquipoId { get; set; }
+
+        public TipoMantenimiento Tipo { get; set; } = TipoMantenimiento.Preventivo;
+
+        public DateTime? FechaProgramada { get; set; }
+
+        public decimal? Costo { get; set; }
+
+        public string? Proveedor { get; set; }
+
+        public string? Notas { get; set; }
+    }

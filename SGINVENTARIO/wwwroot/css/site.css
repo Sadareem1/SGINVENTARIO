@@ -1,0 +1,19 @@
+body {
+    background-color: #f5f7fb;
+}
+
+.card-dashboard {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+}
+
+.table-responsive {
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+}
+
+.badge {
+    font-size: 0.85rem;
+}

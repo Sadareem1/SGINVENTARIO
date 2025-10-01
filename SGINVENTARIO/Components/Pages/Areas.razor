@@ -1,0 +1,101 @@
+@page "/areas"
+@attribute [Authorize(Roles = "Admin,Tecnico")]
+@inject ApplicationDbContext Db
+
+<h1>Áreas</h1>
+
+<EditForm Model="_area" OnValidSubmit="GuardarAsync">
+    <DataAnnotationsValidator />
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Nombre</label>
+            <InputText class="form-control" @bind-Value="_area.Nombre" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Descripción</label>
+            <InputText class="form-control" @bind-Value="_area.Descripcion" />
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">@(_area.Id == 0 ? "Agregar" : "Actualizar")</button>
+        </div>
+    </div>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert alert-info mt-3">@_mensaje</div>
+}
+
+<table class="table table-striped mt-3">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Descripción</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var area in _areas)
+        {
+            <tr>
+                <td>@area.Nombre</td>
+                <td>@area.Descripcion</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(area)"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Eliminar(area.Id)"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Area> _areas = new();
+    private Area _area = new();
+    private string? _mensaje;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _areas = await Db.Areas.OrderBy(a => a.Nombre).ToListAsync();
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_area.Id == 0)
+        {
+            Db.Areas.Add(_area);
+        }
+        else
+        {
+            Db.Areas.Update(_area);
+        }
+
+        await Db.SaveChangesAsync();
+        _mensaje = "Cambios guardados.";
+        _area = new Area();
+        _areas = await Db.Areas.OrderBy(a => a.Nombre).ToListAsync();
+    }
+
+    private void Editar(Area area)
+    {
+        _area = new Area
+        {
+            Id = area.Id,
+            Nombre = area.Nombre,
+            Descripcion = area.Descripcion
+        };
+    }
+
+    private async Task Eliminar(int id)
+    {
+        var entity = await Db.Areas.FindAsync(id);
+        if (entity is null)
+        {
+            return;
+        }
+
+        Db.Areas.Remove(entity);
+        await Db.SaveChangesAsync();
+        _areas = await Db.Areas.OrderBy(a => a.Nombre).ToListAsync();
+    }
+}

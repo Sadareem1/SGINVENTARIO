@@ -1,0 +1,28 @@
+@inject ApplicationDbContext Db
+
+@code {
+    private int GarantiasProximas { get; set; }
+    private int MantenimientosProximos { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var hoy = DateTime.UtcNow.Date;
+        var limiteGarantia = hoy.AddDays(30);
+        GarantiasProximas = await Db.Equipos
+            .CountAsync(e => e.GarantiaFin != null && e.GarantiaFin >= hoy && e.GarantiaFin <= limiteGarantia);
+
+        var limiteMantenimiento = hoy.AddDays(15);
+        MantenimientosProximos = await Db.Mantenimientos
+            .CountAsync(m => m.Estado == EstadoMantenimiento.Pendiente && m.FechaProgramada != null &&
+                             m.FechaProgramada >= hoy && m.FechaProgramada <= limiteMantenimiento);
+    }
+}
+
+<div class="d-flex gap-2">
+    <div class="badge bg-warning text-dark" title="Garantías próximas a vencer">
+        <i class="bi bi-shield-exclamation"></i> @GarantiasProximas
+    </div>
+    <div class="badge bg-info text-dark" title="Mantenimientos próximos">
+        <i class="bi bi-wrench"></i> @MantenimientosProximos
+    </div>
+</div>
