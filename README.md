@@ -1,12 +1,12 @@
 # SGINVENTARIO
 
-SGINVENTARIO es una aplicación Blazor Web App (Server) sobre .NET 8 que permite administrar el inventario de equipos de cómputo, controlando asignaciones, mantenimientos y reportes. Utiliza Entity Framework Core con SQL Server y ASP.NET Core Identity para la autenticación y autorización por roles.
+SGINVENTARIO es una aplicación Blazor Web App (Server) sobre .NET 9 que permite administrar el inventario de equipos de cómputo, controlando asignaciones, mantenimientos y reportes. Utiliza Entity Framework Core con SQL Server y ASP.NET Core Identity para la autenticación y autorización por roles.
 
 ## Requisitos
 
-- .NET SDK 8.0.100 o superior
+- .NET SDK 9.0.100 o superior
 - SQL Server 2019+ (administrado con SSMS 21)
-- Visual Studio 2022 17.8+ o Visual Studio Code
+- Visual Studio 2022 17.10+ o Visual Studio Code
 
 ## Configuración inicial
 
