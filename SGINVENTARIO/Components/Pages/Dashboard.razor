@@ -1,0 +1,161 @@
+@page "/dashboard"
+@attribute [Authorize]
+@inject InventoryService Inventory
+@inject IJSRuntime JS
+
+<h1>Dashboard</h1>
+
+@if (_summary is null)
+{
+    <p><span class="spinner-border" role="status"></span> Cargando dashboard...</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-12 col-md-3" @key="_summary.TotalEquipos">
+            <div class="card card-dashboard text-center">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted">Total equipos</h6>
+                    <h2>@_summary.TotalEquipos</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card card-dashboard text-center border-success border-2">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted">Asignados</h6>
+                    <h2 class="text-success">@_summary.EquiposAsignados</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card card-dashboard text-center border-warning border-2">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted">En mantenimiento</h6>
+                    <h2 class="text-warning">@_summary.EquiposMantenimiento</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card card-dashboard text-center border-danger border-2">
+                <div class="card-body">
+                    <h6 class="text-uppercase text-muted">De baja</h6>
+                    <h2 class="text-danger">@_summary.EquiposDeBaja</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <div class="card card-dashboard h-100">
+                <div class="card-body">
+                    <h2 class="h5">Distribución por estado</h2>
+                    <canvas id="estadoChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card card-dashboard h-100">
+                <div class="card-body">
+                    <h2 class="h5">Próximos mantenimientos</h2>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Equipo</th>
+                                    <th>Fecha programada</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_summary.ProximosMantenimientos.Count == 0)
+                                {
+                                    <tr><td colspan="3" class="text-center">No hay mantenimientos pendientes.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var mantenimiento in _summary.ProximosMantenimientos)
+                                    {
+                                        <tr>
+                                            <td>@mantenimiento.Equipo</td>
+                                            <td>@(mantenimiento.FechaProgramada?.ToString("dd/MM/yyyy") ?? "Sin fecha")</td>
+                                            <td><span class="badge bg-info text-dark">@mantenimiento.Estado</span></td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card card-dashboard">
+                <div class="card-body">
+                    <h2 class="h5">Últimos movimientos</h2>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Equipo</th>
+                                    <th>Tipo</th>
+                                    <th>Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_summary.UltimosMovimientos.Count == 0)
+                                {
+                                    <tr><td colspan="4" class="text-center">No hay movimientos registrados.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var movimiento in _summary.UltimosMovimientos)
+                                    {
+                                        <tr>
+                                            <td>@movimiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>@movimiento.Equipo</td>
+                                            <td>@movimiento.Tipo</td>
+                                            <td>@movimiento.Detalle</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardSummary? _summary;
+    private bool _rendered;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await Inventory.GetDashboardAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_summary is not null && (!_rendered || firstRender))
+        {
+            _rendered = true;
+            var labels = _summary.TotalesPorEstado.Keys.ToArray();
+            var valores = _summary.TotalesPorEstado.Values.ToArray();
+            await JS.InvokeVoidAsync("renderEstadoChart", "estadoChart", new
+            {
+                type = "doughnut",
+                labels,
+                values = valores,
+                label = "Equipos"
+            });
+        }
+    }
+}

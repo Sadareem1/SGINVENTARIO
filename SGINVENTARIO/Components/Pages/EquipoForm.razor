@@ -1,0 +1,182 @@
+@page "/equipo-form/{Id:int?}"
+@attribute [Authorize(Roles = "Admin,Tecnico,Consulta")]
+@inject InventoryService Inventory
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h1>@(Id.HasValue ? "Editar equipo" : "Nuevo equipo")</h1>
+
+@if (_equipo is null)
+{
+    <p><span class="spinner-border"></span> Cargando...</p>
+}
+else
+{
+    <EditForm Model="_equipo" OnValidSubmit="GuardarAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Código inventario</label>
+                <InputText class="form-control" @bind-Value="_equipo.CodigoInventario" disabled="@IsReadOnly" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Marca</label>
+                <InputText class="form-control" @bind-Value="_equipo.Marca" disabled="@IsReadOnly" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Modelo</label>
+                <InputText class="form-control" @bind-Value="_equipo.Modelo" disabled="@IsReadOnly" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <InputSelect class="form-select" @bind-Value="_equipo.Estado" disabled="@IsReadOnly">
+                    @foreach (var estado in Enum.GetValues<EstadoEquipo>())
+                    {
+                        <option value="@estado">@estado</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Descripción</label>
+                <InputTextArea class="form-control" @bind-Value="_equipo.Descripcion" disabled="@IsReadOnly" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Área</label>
+                <InputSelect class="form-select" @bind-Value="_equipo.AreaId" disabled="@IsReadOnly">
+                    @foreach (var area in _areas)
+                    {
+                        <option value="@area.Id">@area.Nombre</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Planta</label>
+                <InputSelect class="form-select" @bind-Value="_equipo.PlantaId" disabled="@IsReadOnly">
+                    @foreach (var planta in _plantas)
+                    {
+                        <option value="@planta.Id">@planta.Nombre</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Usuario asignado</label>
+                <InputSelect class="form-select" @bind-Value="_equipo.UsuarioAsignadoId" disabled="@(!PuedeAsignarUsuario)">
+                    <option value="">Sin asignar</option>
+                    @foreach (var usuario in _usuarios)
+                    {
+                        <option value="@usuario.Id">@usuario.NombreCompleto (@usuario.Email)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Ubicación</label>
+                <InputText class="form-control" @bind-Value="_equipo.Ubicacion" disabled="@IsReadOnly" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Fecha registro</label>
+                <InputDate class="form-control" @bind-Value="_equipo.FechaRegistro" disabled />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Fin garantía</label>
+                <InputDate class="form-control" @bind-Value="_garantia" disabled="@IsReadOnly" />
+            </div>
+        </div>
+
+        @if (!IsReadOnly)
+        {
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <button type="button" class="btn btn-secondary" @onclick="Volver">Cancelar</button>
+            </div>
+        }
+        else
+        {
+            <div class="mt-4">
+                <button type="button" class="btn btn-secondary" @onclick="Volver">Volver</button>
+            </div>
+        }
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <div class="alert alert-warning mt-3">@_statusMessage</div>
+    }
+}
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool Readonly { get; set; }
+
+    private Equipo? _equipo;
+    private List<Area> _areas = new();
+    private List<Planta> _plantas = new();
+    private List<UsuarioPersona> _usuarios = new();
+    private string? _statusMessage;
+    private DateTime? _garantia;
+    private ClaimsPrincipal _usuario = new();
+
+    private bool PuedeEditar => _usuario.IsInRole("Admin") || _usuario.IsInRole("Tecnico");
+    private bool IsReadOnly => Readonly || !PuedeEditar;
+    private bool PuedeAsignarUsuario => !IsReadOnly && _equipo?.Estado == EstadoEquipo.Asignado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _areas = await Db.Areas.OrderBy(a => a.Nombre).ToListAsync();
+        _plantas = await Db.Plantas.OrderBy(p => p.Nombre).ToListAsync();
+        _usuarios = await Db.UsuariosPersona.OrderBy(u => u.Nombres).ToListAsync();
+
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _usuario = state.User;
+
+        if (Id.HasValue)
+        {
+            _equipo = await Inventory.GetEquipoAsync(Id.Value);
+            if (_equipo is null)
+            {
+                _statusMessage = "No se encontró el equipo solicitado.";
+                return;
+            }
+        }
+        else
+        {
+            _equipo = new Equipo
+            {
+                FechaRegistro = DateTime.UtcNow.Date,
+                Activo = true,
+                Estado = EstadoEquipo.Operativo,
+                AreaId = _areas.FirstOrDefault()?.Id ?? 0,
+                PlantaId = _plantas.FirstOrDefault()?.Id ?? 0
+            };
+        }
+
+        _garantia = _equipo.GarantiaFin;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_equipo is null)
+        {
+            return;
+        }
+
+        _equipo.GarantiaFin = _garantia;
+        var usuario = _usuario.Identity?.Name ?? "Usuario";
+        var result = await Inventory.SaveEquipoAsync(_equipo, usuario);
+        if (!result.Success)
+        {
+            _statusMessage = result.ErrorMessage;
+            return;
+        }
+
+        Navigation.NavigateTo("/equipos");
+    }
+
+    private void Volver() => Navigation.NavigateTo("/equipos");
+}

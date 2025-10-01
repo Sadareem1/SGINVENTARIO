@@ -1,0 +1,279 @@
+@page "/equipos"
+@attribute [Authorize(Roles = "Admin,Tecnico,Consulta")]
+@inject InventoryService Inventory
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h1>Equipos</h1>
+
+<div class="card card-dashboard mb-3">
+    <div class="card-body">
+        <EditForm Model="_filter" OnValidSubmit="BuscarAsync">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Buscar</label>
+                    <InputText class="form-control" @bind-Value="_filter.Search" placeholder="Código, marca, modelo" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Área</label>
+                    <InputSelect class="form-select" @bind-Value="_filter.AreaId">
+                        <option value="">Todas</option>
+                        @foreach (var area in _areas)
+                        {
+                            <option value="@area.Id">@area.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Planta</label>
+                    <InputSelect class="form-select" @bind-Value="_filter.PlantaId">
+                        <option value="">Todas</option>
+                        @foreach (var planta in _plantas)
+                        {
+                            <option value="@planta.Id">@planta.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <InputSelect class="form-select" @bind-Value="_filter.Estado">
+                        <option value="">Todos</option>
+                        @foreach (var estado in Enum.GetValues<EstadoEquipo>())
+                        {
+                            <option value="@estado">@estado</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Ordenar por</label>
+                    <InputSelect class="form-select" @bind-Value="_filter.SortBy">
+                        <option value="CodigoInventario">Código</option>
+                        <option value="Marca">Marca</option>
+                        <option value="Modelo">Modelo</option>
+                        <option value="Estado">Estado</option>
+                        <option value="Area">Área</option>
+                        <option value="Planta">Planta</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-1 form-check form-switch">
+                    <InputCheckbox class="form-check-input" @bind-Value="_filter.SortDescending" />
+                    <label class="form-check-label">Desc</label>
+                </div>
+                <div class="col-12 col-md-12 col-lg-1">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i></button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between mb-3">
+    <div>
+        @if (UserIsEditor)
+        {
+            <a class="btn btn-success" href="/equipo-form"><i class="bi bi-plus-lg"></i> Nuevo</a>
+        }
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary" @onclick="ExportCsv"><i class="bi bi-filetype-csv"></i> CSV</button>
+        <button class="btn btn-outline-secondary" @onclick="ExportPdf"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+        @if (UserIsEditor)
+        {
+            <label class="btn btn-outline-primary mb-0">
+                <i class="bi bi-cloud-upload"></i> Importar CSV
+                <InputFile OnChange="ImportCsv" accept=".csv" style="display:none" />
+            </label>
+        }
+    </div>
+</div>
+
+@if (_equipos is null)
+{
+    <p><span class="spinner-border" role="status"></span> Cargando...</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Estado</th>
+                    <th>Área</th>
+                    <th>Planta</th>
+                    <th>Asignado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_equipos.Items.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center">No se encontraron equipos.</td></tr>
+                }
+                else
+                {
+                    @foreach (var equipo in _equipos.Items)
+                    {
+                        <tr>
+                            <td>@equipo.CodigoInventario</td>
+                            <td>@equipo.Marca</td>
+                            <td>@equipo.Modelo</td>
+                            <td>
+                                <span class="badge bg-@GetEstadoColor(equipo.Estado)">@equipo.Estado</span>
+                            </td>
+                            <td>@equipo.Area?.Nombre</td>
+                            <td>@equipo.Planta?.Nombre</td>
+                            <td>@equipo.UsuarioAsignado?.NombreCompleto</td>
+                            <td class="text-end">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => VerDetalle(equipo.Id)"><i class="bi bi-eye"></i></button>
+                                    @if (UserIsEditor)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Editar(equipo.Id)"><i class="bi bi-pencil"></i></button>
+                                    }
+                                    @if (UserIsAdmin)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Eliminar(equipo.Id)"><i class="bi bi-trash"></i></button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <nav aria-label="Paginación">
+        <ul class="pagination justify-content-end">
+            <li class="page-item @(_equipos.PageIndex == 1 ? "disabled" : string.Empty)">
+                <button class="page-link" @onclick="PrevPage">Anterior</button>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Página @_equipos.PageIndex de @_equipos.TotalPages</span>
+            </li>
+            <li class="page-item @(_equipos.PageIndex >= _equipos.TotalPages ? "disabled" : string.Empty)">
+                <button class="page-link" @onclick="NextPage">Siguiente</button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="alert alert-info mt-3">@_statusMessage</div>
+}
+
+@code {
+    private readonly EquipoFilter _filter = new();
+    private PagedResult<Equipo>? _equipos;
+    private List<Area> _areas = new();
+    private List<Planta> _plantas = new();
+    private string? _statusMessage;
+    private ClaimsPrincipal _currentUser = new ClaimsPrincipal();
+
+    private bool UserIsEditor => UserIsAdmin || _currentUser.IsInRole("Tecnico");
+    private bool UserIsAdmin => _currentUser.IsInRole("Admin");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _currentUser = state.User;
+        _areas = await Db.Areas.OrderBy(a => a.Nombre).ToListAsync();
+        _plantas = await Db.Plantas.OrderBy(p => p.Nombre).ToListAsync();
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _equipos = await Inventory.GetEquiposAsync(_filter);
+        StateHasChanged();
+    }
+
+    private async Task BuscarAsync()
+    {
+        _filter.PageIndex = 1;
+        await LoadDataAsync();
+    }
+
+    private async Task PrevPage()
+    {
+        if (_equipos is null || _equipos.PageIndex <= 1)
+        {
+            return;
+        }
+
+        _filter.PageIndex--;
+        await LoadDataAsync();
+    }
+
+    private async Task NextPage()
+    {
+        if (_equipos is null || _equipos.PageIndex >= _equipos.TotalPages)
+        {
+            return;
+        }
+
+        _filter.PageIndex++;
+        await LoadDataAsync();
+    }
+
+    private string GetEstadoColor(EstadoEquipo estado) => estado switch
+    {
+        EstadoEquipo.Operativo => "success",
+        EstadoEquipo.Mantenimiento => "warning",
+        EstadoEquipo.DeBaja => "danger",
+        EstadoEquipo.Asignado => "primary",
+        _ => "secondary"
+    };
+
+    private void Editar(int id) => Navigation.NavigateTo($"/equipo-form/{id}");
+
+    private void VerDetalle(int id) => Navigation.NavigateTo($"/equipo-form/{id}?readonly=true");
+
+    private async Task Eliminar(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "¿Desea eliminar el equipo seleccionado?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var result = await Inventory.DeleteEquipoAsync(id);
+        _statusMessage = result.Success ? "Equipo eliminado." : result.ErrorMessage;
+        await LoadDataAsync();
+    }
+
+    private async Task ImportCsv(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        await using var stream = file.OpenReadStream(20 * 1024 * 1024);
+        var result = await Inventory.ImportEquiposCsvAsync(stream, "Importador");
+        var resumen = $"Procesados: {result.Procesados}, Nuevos: {result.Creados}, Actualizados: {result.Actualizados}";
+        if (result.TieneErrores)
+        {
+            resumen += " - Errores: " + string.Join(" | ", result.Errores.Take(5));
+        }
+
+        _statusMessage = resumen;
+        await LoadDataAsync();
+    }
+
+    private async Task ExportCsv()
+    {
+        var data = await Inventory.ExportEquiposCsvAsync(_filter);
+        await JS.InvokeVoidAsync("downloadFile", $"equipos_{DateTime.UtcNow:yyyyMMddHHmm}.csv", "text/csv", Convert.ToBase64String(data));
+    }
+
+    private async Task ExportPdf()
+    {
+        var data = await Inventory.ExportEquiposPdfAsync(_filter);
+        await JS.InvokeVoidAsync("downloadFile", $"equipos_{DateTime.UtcNow:yyyyMMddHHmm}.pdf", "application/pdf", Convert.ToBase64String(data));
+    }
+
+    private bool UserIsInRole(string role) => _currentUser.IsInRole(role);
+}

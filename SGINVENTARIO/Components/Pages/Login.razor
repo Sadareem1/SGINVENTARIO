@@ -1,0 +1,51 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@inject SignInManager<IdentityUser> SignInManager
+@inject NavigationManager Navigation
+
+<h1>Iniciar sesión</h1>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="IngresarAsync">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label">Usuario o Email</label>
+        <InputText class="form-control" @bind-Value="_model.UserName" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Contraseña</label>
+        <InputText class="form-control" @bind-Value="_model.Password" type="password" />
+    </div>
+    <button type="submit" class="btn btn-primary">Ingresar</button>
+</EditForm>
+
+@code {
+    private readonly LoginModel _model = new();
+    private string? _error;
+
+    private async Task IngresarAsync()
+    {
+        var result = await SignInManager.PasswordSignInAsync(_model.UserName!, _model.Password!, isPersistent: false, lockoutOnFailure: false);
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/dashboard", true);
+        }
+        else
+        {
+            _error = "Credenciales inválidas.";
+        }
+    }
+
+    private class LoginModel
+    {
+        [Required]
+        public string? UserName { get; set; }
+
+        [Required]
+        public string? Password { get; set; }
+    }
+}

@@ -1,0 +1,130 @@
+@page "/movimientos"
+@attribute [Authorize(Roles = "Admin,Tecnico,Consulta")]
+@inject ApplicationDbContext Db
+
+<h1>Movimientos de equipos</h1>
+
+<div class="card card-dashboard mb-3">
+    <div class="card-body">
+        <EditForm Model="_filtro" OnValidSubmit="LoadAsync">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Desde</label>
+                    <InputDate class="form-control" @bind-Value="_filtro.Desde" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Hasta</label>
+                    <InputDate class="form-control" @bind-Value="_filtro.Hasta" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Tipo</label>
+                    <InputSelect class="form-select" @bind-Value="_filtro.Tipo">
+                        <option value="">Todos</option>
+                        @foreach (var tipo in Enum.GetValues<TipoMovimiento>())
+                        {
+                            <option value="@tipo">@tipo</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Código equipo</label>
+                    <InputText class="form-control" @bind-Value="_filtro.Codigo" />
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Buscar</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@if (_movimientos is null)
+{
+    <p><span class="spinner-border"></span> Cargando...</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Código</th>
+                    <th>Tipo</th>
+                    <th>Detalle</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_movimientos.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center">Sin resultados.</td></tr>
+                }
+                else
+                {
+                    @foreach (var movimiento in _movimientos)
+                    {
+                        <tr>
+                            <td>@movimiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@movimiento.Equipo?.CodigoInventario</td>
+                            <td>@movimiento.Tipo</td>
+                            <td>@movimiento.Detalle</td>
+                            <td>@movimiento.UsuarioEjecutor</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private readonly MovimientoFiltro _filtro = new();
+    private List<MovimientoEquipo>? _movimientos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var query = Db.Movimientos
+            .Include(m => m.Equipo)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(_filtro.Codigo))
+        {
+            var codigo = _filtro.Codigo.Trim();
+            query = query.Where(m => m.Equipo!.CodigoInventario.Contains(codigo));
+        }
+
+        if (_filtro.Tipo.HasValue)
+        {
+            query = query.Where(m => m.Tipo == _filtro.Tipo);
+        }
+
+        if (_filtro.Desde.HasValue)
+        {
+            query = query.Where(m => m.Fecha >= _filtro.Desde.Value);
+        }
+
+        if (_filtro.Hasta.HasValue)
+        {
+            query = query.Where(m => m.Fecha <= _filtro.Hasta.Value.AddDays(1));
+        }
+
+        _movimientos = await query
+            .OrderByDescending(m => m.Fecha)
+            .Take(200)
+            .ToListAsync();
+    }
+
+    private class MovimientoFiltro
+    {
+        public DateTime? Desde { get; set; }
+        public DateTime? Hasta { get; set; }
+        public TipoMovimiento? Tipo { get; set; }
+        public string? Codigo { get; set; }
+    }
+}
